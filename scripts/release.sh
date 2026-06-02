@@ -55,7 +55,7 @@ docker_ok() { docker info >/dev/null 2>&1; }
 with_docker() {
   if docker_ok; then
     "$@"
-  elif id -nG | tr ' ' '\n' | grep -qx docker && command -v sg >/dev/null 2>&1; then
+  elif command -v sg >/dev/null 2>&1; then
     sg docker -c "$(printf '%q ' "$@")"
   else
     die "docker not accessible (add user to docker group, then log out/in or run: newgrp docker)"
