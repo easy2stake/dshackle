@@ -2,6 +2,7 @@ package io.emeraldpay.dshackle.monitoring.accesslog
 
 import io.emeraldpay.api.proto.BlockchainOuterClass
 import io.emeraldpay.dshackle.Chain
+import io.emeraldpay.dshackle.config.AccessLogConfig
 import io.emeraldpay.dshackle.config.MainConfig
 import io.emeraldpay.dshackle.rpc.NativeCall
 import org.slf4j.LoggerFactory
@@ -34,7 +35,7 @@ class AccessHandlerHttp(
      * Use factory since we need a different behaviour for situation when log is configured and when is not
      */
     val factory: HandlerFactory = if (mainConfig.accessLogConfig.enabled) {
-        StandardFactory(accessLogWriter)
+        StandardFactory(mainConfig.accessLogConfig, accessLogWriter)
     } else {
         NoOpFactory()
     }
@@ -59,12 +60,21 @@ class AccessHandlerHttp(
         }
     }
 
-    class StandardFactory(val accessLogWriter: AccessLogWriter) : HandlerFactory {
+    class StandardFactory(
+        private val accessLogConfig: AccessLogConfig,
+        val accessLogWriter: AccessLogWriter,
+    ) : HandlerFactory {
         override fun create(req: HttpServerRequest, blockchain: Chain): RequestHandler {
+            if (!accessLogConfig.shouldLog(blockchain)) {
+                return NO_REQUEST
+            }
             return StandardHandler(accessLogWriter, req, blockchain)
         }
 
         override fun start(req: WebsocketInbound, blockchain: Chain): WsHandlerFactory {
+            if (!accessLogConfig.shouldLog(blockchain)) {
+                return NO_REQUEST
+            }
             return StandardWsHandlerFactory(accessLogWriter, req, blockchain)
         }
     }

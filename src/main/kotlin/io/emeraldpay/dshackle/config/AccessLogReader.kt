@@ -1,9 +1,17 @@
 package io.emeraldpay.dshackle.config
 
+import io.emeraldpay.dshackle.Chain
+import io.emeraldpay.dshackle.Global
 import io.emeraldpay.dshackle.foundation.YamlConfigReader
+import org.slf4j.LoggerFactory
 import org.yaml.snakeyaml.nodes.MappingNode
 
 class AccessLogReader : YamlConfigReader<AccessLogConfig>() {
+
+    companion object {
+        private val log = LoggerFactory.getLogger(AccessLogReader::class.java)
+    }
+
     override fun read(input: MappingNode?): AccessLogConfig {
         return getMapping(input, "accessLog")?.let { node ->
             val enabled = getValueAsBool(node, "enabled") ?: false
@@ -11,12 +19,36 @@ class AccessLogReader : YamlConfigReader<AccessLogConfig>() {
                 AccessLogConfig.disabled()
             } else {
                 val includeMessages = getValueAsBool(node, "include-messages") ?: false
-                val config = AccessLogConfig(true, includeMessages)
+                val chains = readChains(node)
+                val config = AccessLogConfig(true, includeMessages, chains)
                 getValueAsString(node, "filename")?.let {
                     config.filename = it
                 }
                 config
             }
         } ?: AccessLogConfig.default()
+    }
+
+    private fun readChains(node: MappingNode): Set<Chain>? {
+        if (!hasAny(node, "chains")) {
+            return null
+        }
+        val list = getListOfString(node, "chains") ?: emptyList()
+        val chains = HashSet<Chain>()
+        list.forEach { id ->
+            val chain = Global.chainById(id)
+            if (chain == Chain.UNSPECIFIED) {
+                log.warn("Invalid accessLog chain: $id")
+            } else {
+                chains.add(chain)
+            }
+        }
+        if (chains.isEmpty()) {
+            log.error(
+                "accessLog.chains is set but contains no valid chains; " +
+                    "access log will not record requests (fix chain ids or remove chains to log all)",
+            )
+        }
+        return chains
     }
 }

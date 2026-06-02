@@ -471,6 +471,12 @@ Note that for errors it provides only error message, not the error response itse
 | `access_log.jsonl`
 | Path to the access log file
 
+| `chains`
+| (not set)
+| Optional list of blockchains to log (same ids as `proxy.routes` / `upstreams`, e.g. `ethereum`, `bitcoin`).
+When omitted, all chains are logged.
+When set, only valid listed chains are logged; an empty list or only invalid ids logs nothing (and logs an error at startup).
+
 |===
 
 [#tokens]

@@ -17,6 +17,7 @@ package io.emeraldpay.dshackle.monitoring.accesslog
 
 import io.emeraldpay.dshackle.Global
 import io.emeraldpay.dshackle.config.MainConfig
+import io.emeraldpay.dshackle.monitoring.accesslog.Events.ChainBase
 import jakarta.annotation.PostConstruct
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
@@ -62,6 +63,16 @@ class AccessLogWriter(
             return
         }
         log.info("Writing Access Log to ${filename.absolutePath}")
+        when (val filter = config.chains) {
+            null -> Unit
+            emptySet() -> log.warn(
+                "Access Log chain filter is active but empty; no chain events will be logged",
+            )
+            else -> log.info(
+                "Access Log chain filter: {}",
+                filter.joinToString { it.chainCode },
+            )
+        }
         scheduler.schedule(runner, START_SLEEP_MS, TimeUnit.MILLISECONDS)
 
         // propagate current config to the Event Builder, so it knows which details to include
@@ -81,11 +92,21 @@ class AccessLogWriter(
     }
 
     fun submit(event: Any) {
-        queue.add(event)
+        if (shouldLog(event)) {
+            queue.add(event)
+        }
     }
 
     fun submit(events: List<Any>) {
-        queue.addAll(events)
+        events.filter(::shouldLog).forEach { queue.add(it) }
+    }
+
+    private fun shouldLog(event: Any): Boolean {
+        val filter = config.chains ?: return true
+        if (filter.isEmpty()) {
+            return false
+        }
+        return event is ChainBase && event.blockchain in filter
     }
 
     fun logError(m: () -> Unit) {

@@ -16,7 +16,14 @@ To enable access log add following configuration:
 accessLog:
   enabled: true
   filename: /var/log/dshackle/access_log.jsonl
+  chains:
+    - ethereum
+    - bitcoin
 ----
+
+When `chains` is set, only requests for those blockchains are written to the access log.
+Omit `chains` to log every chain.
+If `chains` is set but empty or contains only unknown ids, nothing is logged and startup reports an error (it does not fall back to logging all chains).
 
 `filename` is optional, and the default value is `access_log.jsonl` (i.e., in the current directory).
 

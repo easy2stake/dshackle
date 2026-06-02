@@ -50,4 +50,61 @@ class AccessLogWriterSpec extends Specification {
             json["request"]["remote"]["userAgent"] == "UnitTest"
         }
     }
+
+    def "skips events for chains not in filter"() {
+        setup:
+        File dir = File.createTempDir("dshackle-test-")
+        File accessLog = new File(dir, "accesslog-filtered.jsonl")
+        MainConfig config = new MainConfig()
+        config.accessLogConfig = new AccessLogConfig(true, false, [Chain.BITCOIN__MAINNET] as Set).tap {
+            it.filename = accessLog.absolutePath
+        }
+        AccessLogWriter logWriter = new AccessLogWriter(config)
+        def event = new Events.Status(
+                Chain.ETHEREUM__MAINNET, UUID.fromString("9d8ecbf3-12fb-49cf-af9d-949a1050a000"),
+                new Events.StreamRequestDetails(
+                        UUID.fromString("9d8ecbf3-12fb-49cf-af9d-949a1050a000"),
+                        Instant.ofEpochMilli(1626746880123),
+                        new Events.Remote(
+                                ["127.0.0.1"], "127.0.0.1", "UnitTest"
+                        )
+                )
+        )
+
+        when:
+        logWriter.submit([event])
+        logWriter.flush()
+
+        then:
+        accessLog.exists()
+        accessLog.readLines().isEmpty()
+    }
+
+    def "skips all events when chain filter is explicitly empty"() {
+        setup:
+        File dir = File.createTempDir("dshackle-test-")
+        File accessLog = new File(dir, "accesslog-empty-filter.jsonl")
+        MainConfig config = new MainConfig()
+        config.accessLogConfig = new AccessLogConfig(true, false, [] as Set).tap {
+            it.filename = accessLog.absolutePath
+        }
+        AccessLogWriter logWriter = new AccessLogWriter(config)
+        def event = new Events.Status(
+                Chain.BITCOIN__MAINNET, UUID.fromString("9d8ecbf3-12fb-49cf-af9d-949a1050a000"),
+                new Events.StreamRequestDetails(
+                        UUID.fromString("9d8ecbf3-12fb-49cf-af9d-949a1050a000"),
+                        Instant.ofEpochMilli(1626746880123),
+                        new Events.Remote(
+                                ["127.0.0.1"], "127.0.0.1", "UnitTest"
+                        )
+                )
+        )
+
+        when:
+        logWriter.submit([event])
+        logWriter.flush()
+
+        then:
+        accessLog.readLines().isEmpty()
+    }
 }
