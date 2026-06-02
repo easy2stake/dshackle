@@ -44,6 +44,7 @@ The access log contains the JSON lines similar to:
   "total":2,
   "index":0,
   "succeed":true,
+  "latency":87,
   "request":{
     "id":"513b9b49-b472-4c83-b4b7-58dd2aabe9f6",
     "start":"2021-07-20T01:53:33.086946Z",
@@ -62,7 +63,7 @@ The access log contains the JSON lines similar to:
 ----
 
 .Where:
-- `ts` timestamp of the reply
+- `ts` timestamp of the reply (for JSON-RPC proxy batch calls, each line has the time that specific sub-call finished)
 - `id` uniq id of the reply
 - `method` Dshackle method which was called (i.e., not a Blockchain API method, see `nativeCall` details)
 - `blockchain` blockchain code
@@ -70,9 +71,10 @@ The access log contains the JSON lines similar to:
 - `total` how many requests in the batch (available only for a `NativeCall` call)
 - `index` current index (i.e. count) of the reply to the original request
 - `succeed` if call succeeded, in terms of Blockchain API
+- `latency` response time in milliseconds for this reply: elapsed from `request.start` to `ts` (end-to-end per sub-call, including JSON parsing for HTTP proxy)
 - `request` original request details
 ** `id` uniq id of the request; all replied to the same request have same id
-** `start` when request was received
+** `start` when the client request was received (HTTP/WS: when the proxy handler was created; gRPC: when the `NativeCall` RPC started)
 ** `remote` remote details
 *** `ips` list of all recognized IPs (including headers such as `X-Real-IP` and `X-Forwarded-For`)
 *** `ip` a single ip, that likely represent a real IP of the remote

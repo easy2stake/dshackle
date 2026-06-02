@@ -243,12 +243,16 @@ class EventsBuilder {
         }
     }
 
-    class NativeCall(private val startTs: Instant) :
+    class NativeCall(private val requestStartTs: Instant) :
         Base<NativeCall>(),
         RequestReply<Events.NativeCall, BlockchainOuterClass.NativeCallRequest, BlockchainOuterClass.NativeCallReplyItem> {
         val items = ArrayList<Events.NativeCallItemDetails>()
         val replies = HashMap<Int, Events.NativeCallReplyDetails>()
         private var index = 0
+
+        init {
+            requestDetails = requestDetails.copy(start = requestStartTs)
+        }
 
         override fun getT(): NativeCall {
             return this
@@ -281,7 +285,7 @@ class EventsBuilder {
                 index = index++,
                 succeed = msg.succeed,
                 blockchain = chain,
-                latency = Duration.between(Instant.now(), startTs).toMillis(),
+                latency = Duration.between(requestStartTs, Instant.now()).toMillis(),
                 nativeCall = item,
                 payloadSizeBytes = item.payloadSizeBytes,
                 id = UUID.randomUUID(),
@@ -300,6 +304,7 @@ class EventsBuilder {
         fun onReply(
             reply: io.emeraldpay.dshackle.rpc.NativeCall.CallResult,
             channel: Events.Channel,
+            replyTs: Instant,
         ): Events.NativeCall {
             val item = items.find { it.id == reply.id }!!
             return Events.NativeCall(
@@ -308,7 +313,7 @@ class EventsBuilder {
                 index = index++,
                 succeed = !reply.isError(),
                 blockchain = chain,
-                latency = Duration.between(startTs, Instant.now()).toMillis(),
+                latency = Duration.between(requestStartTs, replyTs).toMillis(),
                 nativeCall = item,
                 payloadSizeBytes = item.payloadSizeBytes,
                 id = UUID.randomUUID(),

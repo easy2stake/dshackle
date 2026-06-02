@@ -136,29 +136,30 @@ class AccessHandlerHttp(
         private val accessLogWriter: AccessLogWriter,
         private val channel: Events.Channel,
     ) : RequestHandler {
-        protected var startTs: Instant? = null
+        /** When the HTTP/WS connection handler was created (proxy request arrival). */
+        protected val arrivalTs: Instant = Instant.now()
         protected var request: BlockchainOuterClass.NativeCallRequest? = null
         protected val responses = ArrayList<NativeCall.CallResult>()
+        protected val responseTimestamps = HashMap<Int, Instant>()
         protected val updateLock = ReentrantLock()
 
         override fun onRequest(request: BlockchainOuterClass.NativeCallRequest) {
-            this.startTs = Instant.now()
             this.request = request
         }
 
         override fun onResponse(callResult: NativeCall.CallResult) {
             updateLock.withLock {
                 responses.add(callResult)
+                responseTimestamps[callResult.id] = Instant.now()
             }
         }
 
         fun onClose(builder: EventsBuilder.NativeCall) {
-            val responseTime = Instant.now()
             responses
-                .map {
-                    builder.onReply(it, channel).also { item ->
-                        // since for JSON RPC you get a single response then the timestamp of all items included in it must have the same timestamp
-                        item.ts = responseTime
+                .map { result ->
+                    val replyTs = responseTimestamps[result.id]!!
+                    builder.onReply(result, channel, replyTs).also { item ->
+                        item.ts = replyTs
                     }
                 }
                 .let(accessLogWriter::submit)
@@ -175,7 +176,7 @@ class AccessHandlerHttp(
             if (request == null) {
                 return
             }
-            val builder = EventsBuilder.NativeCall(startTs!!)
+            val builder = EventsBuilder.NativeCall(arrivalTs)
             builder.withChain(blockchain.id)
             builder.start(httpRequest)
             builder.onRequest(request!!)
@@ -193,7 +194,7 @@ class AccessHandlerHttp(
             if (request == null) {
                 return
             }
-            val builder = EventsBuilder.NativeCall(startTs!!)
+            val builder = EventsBuilder.NativeCall(arrivalTs)
             builder.withChain(blockchain.id)
             builder.start(wsRequest)
             builder.onRequest(request!!)
