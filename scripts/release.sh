@@ -6,6 +6,7 @@ usage() {
   echo "  $0 verify --upstream-tag vX.Y.Z [--suffix log] [--dry-run] [--allow-dirty]"
   echo "  $0 prod   --upstream-tag vX.Y.Z [--suffix log] [--dry-run] [--allow-dirty]"
   echo "  $0 dev [--dry-run] [--allow-dirty]"
+  echo "  $0 publish --tags tag1,tag2 [--platform linux/amd64] [--dry-run] [--allow-dirty]"
 }
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -106,11 +107,17 @@ ensure_foundation_resources() {
 }
 
 ensure_local_docker() {
+  local build_args=(-t drpc-dshackle .)
+  [[ -n "$PLATFORM" ]] && build_args=(--platform "$PLATFORM" "${build_args[@]}")
   if [[ "$DRY_RUN" == "1" ]]; then
-    echo "[dry-run] docker build -t drpc-dshackle ."
+    echo "[dry-run] docker build ${build_args[*]}"
     return 0
   fi
-  docker image inspect drpc-dshackle >/dev/null 2>&1 || with_docker docker build -t drpc-dshackle .
+  if [[ -n "$PLATFORM" ]]; then
+    with_docker docker build "${build_args[@]}"
+    return 0
+  fi
+  docker image inspect drpc-dshackle >/dev/null 2>&1 || with_docker docker build "${build_args[@]}"
 }
 
 publish_ghcr() {
@@ -128,11 +135,13 @@ publish_ghcr() {
 }
 
 MODE="${1:-}"; [[ -n "$MODE" ]] || { usage; exit 1; }; shift || true
-UPSTREAM_TAG=""; SUFFIX="log"; DRY_RUN="0"; ALLOW_DIRTY="0"
+UPSTREAM_TAG=""; SUFFIX="log"; DRY_RUN="0"; ALLOW_DIRTY="0"; PLATFORM=""; PUBLISH_TAGS=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --upstream-tag) UPSTREAM_TAG="${2:-}"; shift 2 ;;
     --suffix) SUFFIX="${2:-}"; shift 2 ;;
+    --platform) PLATFORM="${2:-}"; shift 2 ;;
+    --tags) PUBLISH_TAGS="${2:-}"; shift 2 ;;
     --dry-run) DRY_RUN="1"; shift ;;
     --allow-dirty) ALLOW_DIRTY="1"; shift ;;
     *) die "unknown argument: $1" ;;
@@ -167,6 +176,10 @@ $(git log --oneline "${UPSTREAM_TAG}..HEAD")"
     SNAPSHOT="$(next_snapshot)"; SHA="$(git rev-parse --short HEAD)"
     TS="t$(date -u +%Y%m%d%H%M)"
     publish_ghcr "${SNAPSHOT},${TS},${SHA}"
+    ;;
+  publish)
+    [[ -n "$PUBLISH_TAGS" ]] || die "publish requires --tags"
+    publish_ghcr "$PUBLISH_TAGS"
     ;;
   *) usage; die "unknown mode: $MODE" ;;
 esac
