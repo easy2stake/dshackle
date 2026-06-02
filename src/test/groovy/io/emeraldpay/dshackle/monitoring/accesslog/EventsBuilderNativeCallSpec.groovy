@@ -4,6 +4,7 @@ import io.emeraldpay.api.proto.BlockchainOuterClass
 import io.emeraldpay.api.proto.Common
 import io.emeraldpay.dshackle.Chain
 import io.emeraldpay.dshackle.rpc.NativeCall
+import io.emeraldpay.dshackle.upstream.Upstream
 import spock.lang.Specification
 
 import java.time.Instant
@@ -99,5 +100,62 @@ class EventsBuilderNativeCallSpec extends Specification {
         then:
         e1.latency == 100
         e2.latency == 350
+    }
+
+    def "HTTP onReply includes upstream id from CallResult"() {
+        setup:
+        def builder = new EventsBuilder.NativeCall(Instant.ofEpochMilli(0))
+        builder.withChain(Chain.ETHEREUM__MAINNET.id)
+        def request = BlockchainOuterClass.NativeCallRequest.newBuilder()
+                .setChain(Common.ChainRef.forNumber(Chain.ETHEREUM__MAINNET.id))
+                .addItems(BlockchainOuterClass.NativeCallItem.newBuilder()
+                        .setMethod("eth_blockNumber")
+                        .setId(1)
+                        .setPayload(com.google.protobuf.ByteString.EMPTY)
+                        .setNonce(0)
+                        .build())
+                .build()
+        builder.onRequest(request)
+        def callResult = new NativeCall.CallResult(
+                1, 0L, "{}".bytes, null, null,
+                [new Upstream.UpstreamSettingsData("public-eth")],
+                null,
+        )
+
+        when:
+        def event = builder.onReply(callResult, Events.Channel.JSONRPC, Instant.ofEpochMilli(100))
+
+        then:
+        event.upstreamId == "public-eth"
+    }
+
+    def "gRPC onReply includes upstream id from reply item"() {
+        setup:
+        def builder = new EventsBuilder.NativeCall(Instant.ofEpochMilli(0))
+        builder.withChain(Chain.ETHEREUM__MAINNET.id)
+        def request = BlockchainOuterClass.NativeCallRequest.newBuilder()
+                .setChain(Common.ChainRef.forNumber(Chain.ETHEREUM__MAINNET.id))
+                .addItems(BlockchainOuterClass.NativeCallItem.newBuilder()
+                        .setMethod("eth_blockNumber")
+                        .setId(1)
+                        .setPayload(com.google.protobuf.ByteString.EMPTY)
+                        .setNonce(0)
+                        .build())
+                .build()
+        builder.onRequest(request)
+        def reply = BlockchainOuterClass.NativeCallReplyItem.newBuilder()
+                .setId(1)
+                .setSucceed(true)
+                .setUpstreamId("public-eth")
+                .setUpstreamNodeVersion("Geth/v1.17.1")
+                .setPayload(com.google.protobuf.ByteString.EMPTY)
+                .build()
+
+        when:
+        def event = builder.onReply(reply)
+
+        then:
+        event.upstreamId == "public-eth"
+        event.upstreamNodeVersion == "Geth/v1.17.1"
     }
 }

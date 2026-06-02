@@ -19,6 +19,7 @@ import io.emeraldpay.api.proto.BlockchainOuterClass
 import io.emeraldpay.api.proto.Common
 import io.emeraldpay.dshackle.Chain
 import io.emeraldpay.dshackle.config.AccessLogConfig
+import io.emeraldpay.dshackle.upstream.Upstream
 import io.grpc.Attributes
 import io.grpc.Grpc
 import io.grpc.Metadata
@@ -42,6 +43,13 @@ class EventsBuilder {
         // A reference to the config for current _running instance_.
         // Initialized by AccessLogWriter
         var accessLogConfig: AccessLogConfig = AccessLogConfig.default()
+
+        private fun upstreamIdsAndVersions(data: List<Upstream.UpstreamSettingsData>): Pair<String?, String?> {
+            if (data.isEmpty()) {
+                return null to null
+            }
+            return data.joinToString { it.id } to data.joinToString { it.nodeVersion }
+        }
     }
 
     interface StartingHttp2Request {
@@ -279,6 +287,8 @@ class EventsBuilder {
 
         override fun onReply(msg: BlockchainOuterClass.NativeCallReplyItem): Events.NativeCall {
             val item = items.find { it.id == msg.id }!!
+            val upstreamId = msg.upstreamId.takeIf { it.isNotEmpty() }
+            val upstreamNodeVersion = msg.upstreamNodeVersion.takeIf { it.isNotEmpty() }
             return Events.NativeCall(
                 request = requestDetails,
                 total = items.size,
@@ -296,6 +306,8 @@ class EventsBuilder {
                     null
                 },
                 errorMessage = if (accessLogConfig.includeMessages) msg.errorMessage else null,
+                upstreamId = upstreamId,
+                upstreamNodeVersion = upstreamNodeVersion,
                 signature = Hex.encodeHexString(msg.signature.signature.toByteArray()),
                 nonce = msg.signature.nonce,
             )
@@ -307,6 +319,7 @@ class EventsBuilder {
             replyTs: Instant,
         ): Events.NativeCall {
             val item = items.find { it.id == reply.id }!!
+            val upstream = upstreamIdsAndVersions(reply.upstreamSettingsData)
             return Events.NativeCall(
                 request = requestDetails,
                 total = items.size,
@@ -326,6 +339,8 @@ class EventsBuilder {
                 } else {
                     null
                 },
+                upstreamId = upstream.first,
+                upstreamNodeVersion = upstream.second,
             )
         }
     }

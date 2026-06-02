@@ -112,6 +112,8 @@ class Events {
         val nativeCall: NativeCallItemDetails,
         val responseBody: String? = null,
         val errorMessage: String? = null,
+        val upstreamId: String? = null,
+        val upstreamNodeVersion: String? = null,
         val nonce: Long? = null,
         val signature: String? = null,
     ) : ChainBase(blockchain, "NativeCall", id, channel)
