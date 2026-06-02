@@ -17,15 +17,36 @@ require_clean_tree() {
 }
 ensure_fork_tag() {
   local fork_tag="$1" msg="$2"
-  local head_sha tag_sha
+  local head_sha tag_sha remote_sha
   head_sha="$(git rev-parse HEAD)"
+  FORK_TAG_FORCE_PUSH="0"
   if git rev-parse "$fork_tag" >/dev/null 2>&1; then
     tag_sha="$(git rev-parse "${fork_tag}^{commit}")"
-    [[ "$tag_sha" == "$head_sha" ]] || die "tag ${fork_tag} exists at ${tag_sha}, not current HEAD ${head_sha}"
-    echo "reusing tag ${fork_tag} at HEAD"
-    return 0
+    if [[ "$tag_sha" == "$head_sha" ]]; then
+      echo "reusing tag ${fork_tag} at HEAD"
+      return 0
+    fi
+    echo "moving tag ${fork_tag} from ${tag_sha} to ${head_sha}"
+    run git tag -d "$fork_tag"
+    FORK_TAG_FORCE_PUSH="1"
+  else
+    remote_sha="$(git ls-remote --tags origin "refs/tags/${fork_tag}^{}" | awk '{print $1}')"
+    [[ -n "$remote_sha" ]] || remote_sha="$(git ls-remote --tags origin "refs/tags/${fork_tag}" | awk '{print $1}')"
+    if [[ -n "$remote_sha" && "$remote_sha" != "$head_sha" ]]; then
+      echo "remote tag ${fork_tag} differs from HEAD; will force-push after recreate"
+      FORK_TAG_FORCE_PUSH="1"
+    fi
   fi
   run git tag -a "$fork_tag" -m "$msg"
+}
+
+push_fork_tag() {
+  local fork_tag="$1"
+  if [[ "$FORK_TAG_FORCE_PUSH" == "1" ]]; then
+    run git push origin "$fork_tag" --force
+  else
+    run git push origin "$fork_tag"
+  fi
 }
 
 fork_owner() { git remote get-url origin | sed -E 's#.*github.com[:/]([^/]+)/.*#\1#'; }
@@ -137,9 +158,10 @@ images: ghcr.io/${OWNER}/dshackle:${FORK_TAG#v}, ghcr.io/${OWNER}/dshackle:${SHA
 fork commits since upstream:
 $(git log --oneline "${UPSTREAM_TAG}..HEAD")"
     ensure_fork_tag "$FORK_TAG" "$MSG"
-    run git push origin "$FORK_TAG"
+    push_fork_tag "$FORK_TAG"
     run git checkout "$FORK_TAG"
     publish_ghcr "${FORK_TAG#v},${SHA}"
+    run git checkout -
     ;;
   dev)
     SNAPSHOT="$(next_snapshot)"; SHA="$(git rev-parse --short HEAD)"
