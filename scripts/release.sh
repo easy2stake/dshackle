@@ -50,11 +50,31 @@ next_snapshot() {
   echo "${last#v}" | sed -E "s/[0-9]+$/$((patch + 1))/" | sed -E 's/$/-SNAPSHOT/'
 }
 
-prepare_auth() {
-  if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    export DOCKERHUB_USERNAME="${GITHUB_ACTOR:-$(fork_owner)}"
-    export DOCKERHUB_TOKEN="$GITHUB_TOKEN"
+docker_ok() { docker info >/dev/null 2>&1; }
+
+with_docker() {
+  if docker_ok; then
+    "$@"
+  elif id -nG | tr ' ' '\n' | grep -qx docker && command -v sg >/dev/null 2>&1; then
+    sg docker -c "$(printf '%q ' "$@")"
+  else
+    die "docker not accessible (add user to docker group, then log out/in or run: newgrp docker)"
   fi
+}
+
+prepare_auth() {
+  local token=""
+  if command -v gh >/dev/null 2>&1 && gh auth status -h github.com >/dev/null 2>&1; then
+    if gh auth status 2>&1 | grep -q 'write:packages'; then
+      token="$(gh auth token)"
+    fi
+  fi
+  if [[ -z "$token" && -n "${GITHUB_TOKEN:-}" ]]; then
+    token="$GITHUB_TOKEN"
+  fi
+  [[ -n "$token" ]] || die "need GHCR auth: gh auth refresh -h github.com -s write:packages (or set GITHUB_TOKEN)"
+  export DOCKERHUB_USERNAME="${GITHUB_ACTOR:-$(fork_owner)}"
+  export DOCKERHUB_TOKEN="$token"
 }
 
 ensure_foundation_resources() {
@@ -64,12 +84,26 @@ ensure_foundation_resources() {
   fi
 }
 
+ensure_local_docker() {
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "[dry-run] docker build -t drpc-dshackle ."
+    return 0
+  fi
+  docker image inspect drpc-dshackle >/dev/null 2>&1 || with_docker docker build -t drpc-dshackle .
+}
+
 publish_ghcr() {
   local tags="$1" owner
   owner="$(fork_owner)"
   prepare_auth
   ensure_foundation_resources
-  run ./gradlew jib -Pdocker="ghcr.io/${owner}" -Djib.to.tags="${tags}"
+  ensure_local_docker
+  if [[ "$DRY_RUN" == "1" ]]; then
+    echo "[dry-run] ./gradlew --no-daemon jib -Pdocker=ghcr.io/${owner} -Djib.to.tags=${tags}"
+    return 0
+  fi
+  ./gradlew --stop >/dev/null 2>&1 || true
+  with_docker ./gradlew --no-daemon jib -Pdocker="ghcr.io/${owner}" -Djib.to.tags="${tags}"
 }
 
 MODE="${1:-}"; [[ -n "$MODE" ]] || { usage; exit 1; }; shift || true
