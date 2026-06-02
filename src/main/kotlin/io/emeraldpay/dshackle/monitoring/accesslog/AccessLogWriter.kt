@@ -15,6 +15,7 @@
  */
 package io.emeraldpay.dshackle.monitoring.accesslog
 
+import io.emeraldpay.dshackle.Chain
 import io.emeraldpay.dshackle.Global
 import io.emeraldpay.dshackle.config.MainConfig
 import io.emeraldpay.dshackle.monitoring.accesslog.Events.ChainBase
@@ -65,7 +66,7 @@ class AccessLogWriter(
         log.info("Writing Access Log to ${filename.absolutePath}")
         when (val filter = config.chains) {
             null -> Unit
-            emptySet() -> log.warn(
+            emptySet<Chain>() -> log.warn(
                 "Access Log chain filter is active but empty; no chain events will be logged",
             )
             else -> log.info(
