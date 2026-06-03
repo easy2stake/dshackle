@@ -46,6 +46,8 @@ Built-in access log (`accessLog` in YAML) writes JSON Lines per response. See `d
 | Valid list | Log only those chains |
 | Empty or only invalid ids | **No access logging**; service **still starts** (warn/error in app logs only) |
 
+Chain filter is enforced in `AccessLogWriter.shouldLog` and early in `AccessHandlerHttp` via `AccessLogConfig.shouldLog(chain)` (skip building events for excluded chains).
+
 **Fork addition on `custom`:** optional `accessLog.min-latency-ms` logs only slow `NativeCall` replies (`latency >=` threshold, inclusive). Omitted or `0` = no filter; negative = disabled with warn. Other event types (`Status`, streams, etc.) are not filtered. Composes with `chains`. Filter runs in `AccessLogWriter.shouldLog` — do not regress `latency` computation.
 
 **Per-call response time (`latency`, on `custom`):** each access-log line for `NativeCall` includes milliseconds from `request.start` to `ts`.
@@ -56,30 +58,104 @@ Built-in access log (`accessLog` in YAML) writes JSON Lines per response. See `d
 | `ts` | When that sub-call’s reply finished (batch JSON-RPC: one line per item, not a shared close timestamp) |
 | `latency` | `Duration.between(request.start, ts)` in ms |
 
+**Fork addition on `custom`:** `NativeCall` lines include `upstreamId` and `upstreamNodeVersion` when the upstream provides them (HTTP from `CallResult`; gRPC from reply items).
+
 **Code touchpoints (do not regress timing or fail-closed `chains`):**
 
-- `monitoring/accesslog/AccessHandlerHttp.kt` — `arrivalTs`, per-id `responseTimestamps` in `onResponse`, log at `close()`
-- `monitoring/accesslog/EventsBuilder.kt` — `NativeCall(requestStartTs)`; gRPC `onReply` must use `between(requestStartTs, now)` (not reversed)
+- `monitoring/accesslog/AccessHandlerHttp.kt` — `arrivalTs`, per-id `responseTimestamps` in `onResponse`, log at `close()`; HTTP/WS latency uses `between(requestStartTs, replyTs)`
+- `monitoring/accesslog/EventsBuilder.kt` — `NativeCall(requestStartTs)`; gRPC protobuf `onReply` uses `between(requestStartTs, Instant.now())` (not reversed)
+- `monitoring/accesslog/AccessHandlerGrpc.kt` — wires gRPC `NativeCall` to `EventsBuilder`
 - `proxy/HttpHandler.kt` / `BaseHandler.kt` — handler lifecycle only; timing logic stays in accesslog package
 
 **Tests:** `./gradlew test --tests "io.emeraldpay.dshackle.monitoring.accesslog.*"`
 
-**Not implemented yet (possible follow-ups):** filter by RPC method, log selected upstream id, full raw POST body.
+**Not implemented yet (possible follow-ups):** filter by RPC method, filter or select upstream id in config, full raw POST body.
 
 ## Containers and releases (`custom`)
 
-Fork images are published to **GHCR** (not only Docker Hub). Keep container/CI changes separate from logging feature commits.
+Fork images are published to **GHCR** via `scripts/release.sh` (day-to-day). Upstream-style **Docker Hub** publish still exists via `make jib` and `.github/workflows/publish.yaml` on GitHub releases. Keep container/CI changes separate from logging feature commits.
 
 | Piece | Role |
 |-------|------|
-| `Makefile` | `jib-ghcr`, `docker-build-push`, `tag-release` |
-| `scripts/docker-build-push.sh` | Local or scripted build/push; `tag-release v0.79.4` creates annotated tag `v0.79.4-log` (suffix `FORK_TAG_SUFFIX`, default `log`) |
-| `.github/workflows/docker.yaml` | Build/push on `v*` tags and releases |
-| `build.gradle` | `jibTargetImage` / `jibImageTags` — release tags get version + git SHA; dev builds add `t<UTC>`; no `latest` on GHCR |
+| `scripts/release.sh` | **Primary GHCR workflow:** `verify` (check HEAD contains upstream tag), `prod` (fork tag `vX.Y.Z-log`, push tag, publish), `dev` (snapshot + `t<UTC>` + SHA), `publish` (custom `--tags`) |
+| `Makefile` | `jib` / `jib-docker` with `-Pdocker=drpcorg` (Docker Hub–style registry id, not GHCR by default) |
+| `.github/workflows/publish.yaml` | On release: `make jib` → Docker Hub; `make distZip` → GitHub release asset |
+| `build.gradle` `jib` block | Base image `drpc-dshackle`; target from `-Pdocker=<registry>`; tags via `-Djib.to.tags=` (as in `release.sh` for GHCR) |
 
-Env: `DOCKER_REGISTRY`, `GHCR_TOKEN` / `GITHUB_TOKEN`, `GHCR_USERNAME`. Use `docker/Dockerfile.build` when the host has no JDK (`FORCE_DOCKER_BUILD=1`).
+**`scripts/release.sh` examples:**
+
+```bash
+./scripts/release.sh verify --upstream-tag v0.79.4
+./scripts/release.sh prod --upstream-tag v0.79.4          # tag v0.79.4-log, push, publish to ghcr.io/<origin-owner>/dshackle
+./scripts/release.sh dev                                  # dev tags: <next>-SNAPSHOT, t<UTC>, <sha>
+./scripts/release.sh publish --tags 0.79.4-log,abc1234
+```
+
+Auth: `gh auth refresh -h github.com -s write:packages` (or `GITHUB_TOKEN` with package write). The script maps that token into Jib’s registry auth. Optional: `--suffix log` (default), `--platform linux/amd64`, `--dry-run`, `--allow-dirty`.
+
+`docker/Dockerfile.build` — builder image for environments without a host JDK (used when extending local build scripts; `release.sh` expects local Java 21 + Docker for `drpc-dshackle`).
 
 ## References
 
-- Monitoring / access log: `docs/06-monitoring.adoc`, `docs/reference-configuration.adoc`
+### Access log (config & docs)
+
+| Topic | Where |
+|-------|--------|
+| Overview, sample YAML, JSON line format | `docs/06-monitoring.adoc` — *Access / Request Log* |
+| All `accessLog.*` options (`enabled`, `filename`, `include-messages`, `chains`, `min-latency-ms`) | `docs/reference-configuration.adoc` — `[#accessLog]` |
+| Top-level Example (includes `accessLog` block) | `docs/reference-configuration.adoc` — *Example* |
+| YAML → config object | `src/main/kotlin/io/emeraldpay/dshackle/config/AccessLogReader.kt`, `AccessLogConfig.kt` |
+| Config parsing tests (inline YAML fixtures) | `src/test/groovy/io/emeraldpay/dshackle/config/AccessLogReaderSpec.groovy` |
+| Runtime / filter / latency tests | `src/test/groovy/io/emeraldpay/dshackle/monitoring/accesslog/` |
+| Fork behavior (`chains`, `min-latency-ms`, `latency`, upstream fields) | *Custom logging* section above |
+
+Minimal enable:
+
+```yaml
+accessLog:
+  enabled: true
+  filename: /var/log/dshackle/access_log.jsonl
+```
+
+Fork demo (chain filter + slow-call filter):
+
+```yaml
+accessLog:
+  enabled: true
+  filename: /var/log/dshackle/access_log.jsonl
+  chains:
+    - ethereum
+    - bitcoin
+  min-latency-ms: 500
+```
+
+### Metrics & monitoring
+
+| Topic | Where |
+|-------|--------|
+| Prometheus setup, Grafana, tracing | `docs/06-monitoring.adoc` |
+| All `monitoring.*` / `prometheus.*` options | `docs/reference-configuration.adoc` — `[#monitoring]` |
+| Health checks overview | `docs/06-monitoring.adoc` — *Health Checks* |
+| All `health.*` options | `docs/reference-configuration.adoc` — `[#health]` |
+| Test fixture config | `src/test/resources/configs/dshackle-monitoring-basic.yaml` |
+| Grafana dashboard JSON | `dashboard/dshackle.json` |
+| Default metrics URL (when `monitoring` unset) | `http://127.0.0.1:8081/metrics` |
+
+Example:
+
+```yaml
+monitoring:
+  enabled: true
+  jvm: false
+  extended: false
+  prometheus:
+    enabled: true
+    bind: 192.168.0.1
+    port: 8000
+    path: /status/prometheus
+```
+
+### Other
+
 - Proxy routes: `docs/03-server-config.adoc`
+- Docs index: `docs/README.adoc` → *Logging & Monitoring*
