@@ -34,6 +34,19 @@ For JSON-RPC batch calls, each sub-call is filtered on its own `latency`.
 
 `filename` is optional, and the default value is `access_log.jsonl` (i.e., in the current directory).
 
+Optional `include-request-bodies` and `include-response-bodies` control whether request params and response payloads are written to each line (both default to `false`).
+Use them independently when debugging — for example, log request params only, or enable response bodies when investigating slow or failed calls.
+Legacy `include-messages: true` enables both; prefer the granular flags for new configs.
+
+[source,yaml]
+----
+accessLog:
+  enabled: true
+  filename: /var/log/dshackle/access_log.jsonl
+  include-request-bodies: false
+  include-response-bodies: true
+----
+
 Since a single request may contain multiple replies (ex., a batch call, or subscribe to the head blocks) the Dshackle logging is based on replies.
 The access log file contains details per each response send from the server, and each of them refers to original request details.
 

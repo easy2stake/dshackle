@@ -18,10 +18,20 @@ class AccessLogReader : YamlConfigReader<AccessLogConfig>() {
             if (!enabled) {
                 AccessLogConfig.disabled()
             } else {
-                val includeMessages = getValueAsBool(node, "include-messages") ?: false
+                val legacyIncludeMessages = getValueAsBool(node, "include-messages")
+                val includeRequestBodies = getValueAsBool(node, "include-request-bodies")
+                    ?: legacyIncludeMessages ?: false
+                val includeResponseBodies = getValueAsBool(node, "include-response-bodies")
+                    ?: legacyIncludeMessages ?: false
                 val chains = readChains(node)
                 val minLatencyMs = readMinLatencyMs(node)
-                val config = AccessLogConfig(true, includeMessages, chains, minLatencyMs)
+                val config = AccessLogConfig(
+                    true,
+                    includeRequestBodies,
+                    includeResponseBodies,
+                    chains,
+                    minLatencyMs,
+                )
                 getValueAsString(node, "filename")?.let {
                     config.filename = it
                 }

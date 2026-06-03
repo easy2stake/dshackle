@@ -20,7 +20,7 @@ class AccessLogWriterSpec extends Specification {
         File accessLog = new File(dir, "accesslog.jsonl")
         println("Write access log to $accessLog.absolutePath")
         MainConfig config = new MainConfig()
-        config.accessLogConfig = new AccessLogConfig(true, false).tap {
+        config.accessLogConfig = new AccessLogConfig(true, false, false).tap {
             it.filename = accessLog.absolutePath
         }
         AccessLogWriter logWriter = new AccessLogWriter(config)
@@ -59,7 +59,7 @@ class AccessLogWriterSpec extends Specification {
         File dir = File.createTempDir("dshackle-test-")
         File accessLog = new File(dir, "accesslog-filtered.jsonl")
         MainConfig config = new MainConfig()
-        config.accessLogConfig = new AccessLogConfig(true, false, [Chain.BITCOIN__MAINNET] as Set).tap {
+        config.accessLogConfig = new AccessLogConfig(true, false, false, [Chain.BITCOIN__MAINNET] as Set).tap {
             it.filename = accessLog.absolutePath
         }
         AccessLogWriter logWriter = new AccessLogWriter(config)
@@ -88,7 +88,7 @@ class AccessLogWriterSpec extends Specification {
         File dir = File.createTempDir("dshackle-test-")
         File accessLog = new File(dir, "accesslog-empty-filter.jsonl")
         MainConfig config = new MainConfig()
-        config.accessLogConfig = new AccessLogConfig(true, false, [] as Set).tap {
+        config.accessLogConfig = new AccessLogConfig(true, false, false, [] as Set).tap {
             it.filename = accessLog.absolutePath
         }
         AccessLogWriter logWriter = new AccessLogWriter(config)
@@ -116,7 +116,7 @@ class AccessLogWriterSpec extends Specification {
         File dir = File.createTempDir("dshackle-test-")
         File accessLog = new File(dir, "accesslog-latency.jsonl")
         MainConfig config = new MainConfig()
-        config.accessLogConfig = new AccessLogConfig(true, false).tap {
+        config.accessLogConfig = new AccessLogConfig(true, false, false).tap {
             it.filename = accessLog.absolutePath
         }
         AccessLogWriter logWriter = new AccessLogWriter(config)
@@ -140,7 +140,7 @@ class AccessLogWriterSpec extends Specification {
         File dir = File.createTempDir("dshackle-test-")
         File accessLog = new File(dir, "accesslog-min-latency.jsonl")
         MainConfig config = new MainConfig()
-        config.accessLogConfig = new AccessLogConfig(true, false, null, 500L).tap {
+        config.accessLogConfig = new AccessLogConfig(true, false, false, null, 500L).tap {
             it.filename = accessLog.absolutePath
         }
         AccessLogWriter logWriter = new AccessLogWriter(config)
@@ -158,7 +158,7 @@ class AccessLogWriterSpec extends Specification {
         File dir = File.createTempDir("dshackle-test-")
         File accessLog = new File(dir, "accesslog-min-latency-threshold.jsonl")
         MainConfig config = new MainConfig()
-        config.accessLogConfig = new AccessLogConfig(true, false, null, 500L).tap {
+        config.accessLogConfig = new AccessLogConfig(true, false, false, null, 500L).tap {
             it.filename = accessLog.absolutePath
         }
         AccessLogWriter logWriter = new AccessLogWriter(config)
@@ -176,7 +176,7 @@ class AccessLogWriterSpec extends Specification {
         File dir = File.createTempDir("dshackle-test-")
         File accessLog = new File(dir, "accesslog-min-latency-status.jsonl")
         MainConfig config = new MainConfig()
-        config.accessLogConfig = new AccessLogConfig(true, false, null, 500L).tap {
+        config.accessLogConfig = new AccessLogConfig(true, false, false, null, 500L).tap {
             it.filename = accessLog.absolutePath
         }
         AccessLogWriter logWriter = new AccessLogWriter(config)

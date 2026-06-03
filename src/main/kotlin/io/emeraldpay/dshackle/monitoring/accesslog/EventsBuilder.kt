@@ -275,7 +275,7 @@ class EventsBuilder {
                         item.id,
                         item.payload.size().toLong(),
                         item.nonce,
-                        if (accessLogConfig.includeMessages) {
+                        if (accessLogConfig.includeRequestBodies) {
                             if (item.payload != null && !item.payload.isEmpty && item.payload.isValidUtf8) item.payload.toStringUtf8() else ""
                         } else {
                             null
@@ -300,12 +300,12 @@ class EventsBuilder {
                 payloadSizeBytes = item.payloadSizeBytes,
                 id = UUID.randomUUID(),
                 channel = Events.Channel.GRPC,
-                responseBody = if (accessLogConfig.includeMessages) {
+                responseBody = if (accessLogConfig.includeResponseBodies) {
                     if (msg.payload != null && !msg.payload.isEmpty && msg.payload.isValidUtf8) msg.payload.toStringUtf8() else ""
                 } else {
                     null
                 },
-                errorMessage = if (accessLogConfig.includeMessages) msg.errorMessage else null,
+                errorMessage = if (accessLogConfig.includeResponseBodies) msg.errorMessage else null,
                 upstreamId = upstreamId,
                 upstreamNodeVersion = upstreamNodeVersion,
                 signature = Hex.encodeHexString(msg.signature.signature.toByteArray()),
@@ -331,8 +331,8 @@ class EventsBuilder {
                 payloadSizeBytes = item.payloadSizeBytes,
                 id = UUID.randomUUID(),
                 channel = channel,
-                responseBody = if (accessLogConfig.includeMessages) (reply.result?.let { String(it) } ?: "") else null,
-                errorMessage = if (accessLogConfig.includeMessages) {
+                responseBody = if (accessLogConfig.includeResponseBodies) (reply.result?.let { String(it) } ?: "") else null,
+                errorMessage = if (accessLogConfig.includeResponseBodies) {
                     reply.error?.let {
                         it.upstreamError?.message ?: it.message
                     } ?: ""
@@ -373,7 +373,7 @@ class EventsBuilder {
                 payloadSizeBytes = msg.payload?.size()?.toLong() ?: 0L,
                 id = UUID.randomUUID(),
                 channel = Events.Channel.GRPC,
-                responseBody = if (accessLogConfig.includeMessages) (msg.payload?.toStringUtf8() ?: "") else null,
+                responseBody = if (accessLogConfig.includeResponseBodies) (msg.payload?.toStringUtf8() ?: "") else null,
             )
         }
     }

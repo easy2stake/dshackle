@@ -461,11 +461,21 @@ accessLog:
 | `false`
 | Enable/Disable Access logging
 
+| `include-request-bodies`
+| `false`
+| Include request params (JSON-RPC `params`) in `nativeCall.requestParams`.
+Expensive; use for debugging only.
+
+| `include-response-bodies`
+| `false`
+| Include response result and error message in `responseBody` / `errorMessage`.
+Expensive; use for debugging only.
+For errors, only the error message is logged, not the full error response JSON.
+
 | `include-messages`
 | `false`
-| Include request params and response result/error (i.e., a JSON) in access log.
-It's an expensive operation, use it for debugging only.
-Note that for errors it provides only error message, not the error response itself.
+| Deprecated. When `true`, equivalent to setting both `include-request-bodies` and `include-response-bodies` to `true`.
+Granular keys override this default when present (e.g. `include-messages: true` with `include-response-bodies: false` logs request params only).
 
 | `filename`
 | `access_log.jsonl`

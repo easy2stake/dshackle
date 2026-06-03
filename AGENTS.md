@@ -50,6 +50,14 @@ Chain filter is enforced in `AccessLogWriter.shouldLog` and early in `AccessHand
 
 **Fork addition on `custom`:** optional `accessLog.min-latency-ms` logs only slow `NativeCall` replies (`latency >=` threshold, inclusive). Omitted or `0` = no filter; negative = disabled with warn. Other event types (`Status`, streams, etc.) are not filtered. Composes with `chains`. Filter runs in `AccessLogWriter.shouldLog` — do not regress `latency` computation.
 
+**Fork addition on `custom`:** optional `accessLog.include-request-bodies` and `accessLog.include-response-bodies` control payload logging independently (both default `false`). Request params go to `nativeCall.requestParams`; response payloads and error text go to `responseBody` / `errorMessage`. Legacy `include-messages: true` enables both (deprecated; granular keys override when set).
+
+| Flag | JSON field | Default |
+|------|------------|---------|
+| `include-request-bodies` | `nativeCall.requestParams` | off |
+| `include-response-bodies` | `responseBody`, `errorMessage` | off |
+| `include-messages: true` (legacy) | both of the above | — |
+
 **Per-call response time (`latency`, on `custom`):** each access-log line for `NativeCall` includes milliseconds from `request.start` to `ts`.
 
 | Field | Meaning |
@@ -102,12 +110,12 @@ Auth: `gh auth refresh -h github.com -s write:packages` (or `GITHUB_TOKEN` with 
 | Topic | Where |
 |-------|--------|
 | Overview, sample YAML, JSON line format | `docs/06-monitoring.adoc` — *Access / Request Log* |
-| All `accessLog.*` options (`enabled`, `filename`, `include-messages`, `chains`, `min-latency-ms`) | `docs/reference-configuration.adoc` — `[#accessLog]` |
+| All `accessLog.*` options (`enabled`, `filename`, `include-request-bodies`, `include-response-bodies`, `include-messages`, `chains`, `min-latency-ms`) | `docs/reference-configuration.adoc` — `[#accessLog]` |
 | Top-level Example (includes `accessLog` block) | `docs/reference-configuration.adoc` — *Example* |
 | YAML → config object | `src/main/kotlin/io/emeraldpay/dshackle/config/AccessLogReader.kt`, `AccessLogConfig.kt` |
 | Config parsing tests (inline YAML fixtures) | `src/test/groovy/io/emeraldpay/dshackle/config/AccessLogReaderSpec.groovy` |
 | Runtime / filter / latency tests | `src/test/groovy/io/emeraldpay/dshackle/monitoring/accesslog/` |
-| Fork behavior (`chains`, `min-latency-ms`, `latency`, upstream fields) | *Custom logging* section above |
+| Fork behavior (`chains`, `min-latency-ms`, `latency`, body flags, upstream fields) | *Custom logging* section above |
 
 Minimal enable:
 
@@ -127,6 +135,16 @@ accessLog:
     - ethereum
     - bitcoin
   min-latency-ms: 500
+```
+
+Debug payloads (response bodies off by default):
+
+```yaml
+accessLog:
+  enabled: true
+  filename: /var/log/dshackle/access_log.jsonl
+  include-request-bodies: true
+  include-response-bodies: true
 ```
 
 ### Metrics & monitoring

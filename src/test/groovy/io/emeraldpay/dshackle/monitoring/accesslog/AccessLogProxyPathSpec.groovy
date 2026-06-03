@@ -81,7 +81,7 @@ class AccessLogProxyPathSpec extends Specification {
     private Map startProxy(long responseDelayMs) {
         File accessLog = File.createTempFile("accesslog-proxy-", ".jsonl")
         MainConfig mainConfig = new MainConfig()
-        mainConfig.accessLogConfig = new AccessLogConfig(true, false, null, MIN_LATENCY_MS).tap {
+        mainConfig.accessLogConfig = new AccessLogConfig(true, false, false, null, MIN_LATENCY_MS).tap {
             it.filename = accessLog.absolutePath
         }
         AccessLogWriter writer = new AccessLogWriter(mainConfig)

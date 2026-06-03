@@ -82,4 +82,69 @@ accessLog:
         then:
         act.minLatencyMs == null
     }
+
+    def "body flags default false when omitted"() {
+        when:
+        def act = reader.read(reader.readNode("""
+accessLog:
+  enabled: true
+""".stripIndent()))
+
+        then:
+        !act.includeRequestBodies
+        !act.includeResponseBodies
+    }
+
+    def "parses include-request-bodies only"() {
+        when:
+        def act = reader.read(reader.readNode("""
+accessLog:
+  enabled: true
+  include-request-bodies: true
+""".stripIndent()))
+
+        then:
+        act.includeRequestBodies
+        !act.includeResponseBodies
+    }
+
+    def "parses include-response-bodies only"() {
+        when:
+        def act = reader.read(reader.readNode("""
+accessLog:
+  enabled: true
+  include-response-bodies: true
+""".stripIndent()))
+
+        then:
+        !act.includeRequestBodies
+        act.includeResponseBodies
+    }
+
+    def "include-messages sets both body flags"() {
+        when:
+        def act = reader.read(reader.readNode("""
+accessLog:
+  enabled: true
+  include-messages: true
+""".stripIndent()))
+
+        then:
+        act.includeRequestBodies
+        act.includeResponseBodies
+    }
+
+    def "granular key overrides include-messages legacy default"() {
+        when:
+        def act = reader.read(reader.readNode("""
+accessLog:
+  enabled: true
+  include-messages: true
+  include-response-bodies: false
+""".stripIndent()))
+
+        then:
+        act.includeRequestBodies
+        !act.includeResponseBodies
+    }
 }

@@ -4,7 +4,8 @@ import io.emeraldpay.dshackle.Chain
 
 class AccessLogConfig @JvmOverloads constructor(
     val enabled: Boolean = false,
-    val includeMessages: Boolean = false,
+    val includeRequestBodies: Boolean = false,
+    val includeResponseBodies: Boolean = false,
     /**
      * `null` — `chains` not set in config; log all chains.
      * Non-null — only listed chains are logged (`emptySet()` means log nothing).
