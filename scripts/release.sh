@@ -7,6 +7,20 @@ usage() {
   echo "  $0 prod   --upstream-tag vX.Y.Z [--suffix log] [--dry-run] [--allow-dirty]"
   echo "  $0 dev [--dry-run] [--allow-dirty]"
   echo "  $0 publish --tags tag1,tag2 [--platform linux/amd64] [--dry-run] [--allow-dirty]"
+  echo ""
+  echo "Typical flows:"
+  echo "  verify --upstream-tag v0.79.4"
+  echo "    Confirm HEAD is based on that upstream tag."
+  echo "  prod --upstream-tag v0.79.4"
+  echo "    Tag v0.79.4-log, push to origin, publish to ghcr.io/<origin-owner>/dshackle"
+  echo "    with tags 0.79.4-log and short SHA."
+  echo "  dev"
+  echo "    Dev publish: next -SNAPSHOT, UTC t<timestamp>, and short SHA."
+  echo "  publish --tags 0.79.4-log,abc1234"
+  echo "    Publish arbitrary tags without a full prod release."
+  echo ""
+  echo "Options: --suffix log (default), --platform linux/amd64, --dry-run, --allow-dirty"
+  echo "Auth: gh auth refresh -h github.com -s write:packages (or GITHUB_TOKEN)"
 }
 
 die() { echo "error: $*" >&2; exit 1; }
@@ -134,7 +148,9 @@ publish_ghcr() {
   with_docker ./gradlew --no-daemon jib -Pdocker="ghcr.io/${owner}" -Djib.to.tags="${tags}"
 }
 
-MODE="${1:-}"; [[ -n "$MODE" ]] || { usage; exit 1; }; shift || true
+MODE="${1:-}"
+case "$MODE" in -h|--help|"") usage; exit "$([[ -z "$MODE" ]] && echo 1 || echo 0)";; esac
+shift || true
 UPSTREAM_TAG=""; SUFFIX="log"; DRY_RUN="0"; ALLOW_DIRTY="0"; PLATFORM=""; PUBLISH_TAGS=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
