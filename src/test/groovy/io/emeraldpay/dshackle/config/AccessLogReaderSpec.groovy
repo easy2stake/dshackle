@@ -47,4 +47,39 @@ accessLog:
         then:
         act.chains == [Chain.ETHEREUM__MAINNET, Chain.BITCOIN__MAINNET] as Set
     }
+
+    def "min-latency-ms omitted means no latency filter"() {
+        when:
+        def act = reader.read(reader.readNode("""
+accessLog:
+  enabled: true
+""".stripIndent()))
+
+        then:
+        act.minLatencyMs == null
+    }
+
+    def "parses min-latency-ms"() {
+        when:
+        def act = reader.read(reader.readNode("""
+accessLog:
+  enabled: true
+  min-latency-ms: 500
+""".stripIndent()))
+
+        then:
+        act.minLatencyMs == 500L
+    }
+
+    def "negative min-latency-ms disables filter"() {
+        when:
+        def act = reader.read(reader.readNode("""
+accessLog:
+  enabled: true
+  min-latency-ms: -1
+""".stripIndent()))
+
+        then:
+        act.minLatencyMs == null
+    }
 }

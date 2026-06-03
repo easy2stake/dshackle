@@ -1,10 +1,13 @@
 package io.emeraldpay.dshackle.monitoring.accesslog
 
 
+import io.emeraldpay.api.proto.BlockchainOuterClass
+import io.emeraldpay.api.proto.Common
 import io.emeraldpay.dshackle.Chain
 import io.emeraldpay.dshackle.Global
 import io.emeraldpay.dshackle.config.AccessLogConfig
 import io.emeraldpay.dshackle.config.MainConfig
+import io.emeraldpay.dshackle.rpc.NativeCall
 import spock.lang.Specification
 
 import java.time.Instant
@@ -121,31 +124,7 @@ class AccessLogWriterSpec extends Specification {
         def replyTs = Instant.ofEpochMilli(1626746880123)
 
         when:
-        def event = new Events.NativeCall(
-                Chain.ETHEREUM__MAINNET,
-                UUID.fromString("578d83db-cf53-4ef8-b73e-3f1cc0a67e96"),
-                Events.Channel.JSONRPC,
-                new Events.StreamRequestDetails(
-                        UUID.fromString("513b9b49-b472-4c83-b4b7-58dd2aabe9f6"),
-                        requestStart,
-                        new Events.Remote(["127.0.0.1"], "127.0.0.1", "UnitTest")
-                ),
-                1,
-                0,
-                null,
-                null,
-                null,
-                123L,
-                true,
-                null,
-                10L,
-                new Events.NativeCallItemDetails("eth_blockNumber", 1, 2L, 0L),
-                null,
-                null,
-                null,
-                null,
-        )
-        event.ts = replyTs
+        def event = nativeCallEvent(requestStart.toEpochMilli(), replyTs.toEpochMilli())
         logWriter.submit([event])
         logWriter.flush()
 
@@ -154,5 +133,90 @@ class AccessLogWriterSpec extends Specification {
         json["latency"] == 123
         json["ts"] == "2021-07-20T02:08:00.123Z"
         json["request"]["start"] == "2021-07-20T02:08:00Z"
+    }
+
+    def "skips NativeCall below min-latency-ms"() {
+        setup:
+        File dir = File.createTempDir("dshackle-test-")
+        File accessLog = new File(dir, "accesslog-min-latency.jsonl")
+        MainConfig config = new MainConfig()
+        config.accessLogConfig = new AccessLogConfig(true, false, null, 500L).tap {
+            it.filename = accessLog.absolutePath
+        }
+        AccessLogWriter logWriter = new AccessLogWriter(config)
+
+        when:
+        logWriter.submit([nativeCallEvent(1626746880000L, 1626746880100L)])
+        logWriter.flush()
+
+        then:
+        accessLog.readLines().isEmpty()
+    }
+
+    def "writes NativeCall at min-latency-ms threshold"() {
+        setup:
+        File dir = File.createTempDir("dshackle-test-")
+        File accessLog = new File(dir, "accesslog-min-latency-threshold.jsonl")
+        MainConfig config = new MainConfig()
+        config.accessLogConfig = new AccessLogConfig(true, false, null, 500L).tap {
+            it.filename = accessLog.absolutePath
+        }
+        AccessLogWriter logWriter = new AccessLogWriter(config)
+
+        when:
+        logWriter.submit([nativeCallEvent(1626746880000L, 1626746880500L)])
+        logWriter.flush()
+
+        then:
+        accessLog.readLines().size() == 1
+    }
+
+    def "min-latency-ms does not filter non-NativeCall events"() {
+        setup:
+        File dir = File.createTempDir("dshackle-test-")
+        File accessLog = new File(dir, "accesslog-min-latency-status.jsonl")
+        MainConfig config = new MainConfig()
+        config.accessLogConfig = new AccessLogConfig(true, false, null, 500L).tap {
+            it.filename = accessLog.absolutePath
+        }
+        AccessLogWriter logWriter = new AccessLogWriter(config)
+        def event = new Events.Status(
+                Chain.ETHEREUM__MAINNET, UUID.fromString("9d8ecbf3-12fb-49cf-af9d-949a1050a000"),
+                new Events.StreamRequestDetails(
+                        UUID.fromString("9d8ecbf3-12fb-49cf-af9d-949a1050a000"),
+                        Instant.ofEpochMilli(1626746880123),
+                        new Events.Remote(
+                                ["127.0.0.1"], "127.0.0.1", "UnitTest"
+                        )
+                )
+        )
+
+        when:
+        logWriter.submit([event])
+        logWriter.flush()
+
+        then:
+        accessLog.readLines().size() == 1
+    }
+
+    private static Events.NativeCall nativeCallEvent(long requestStartMs, long replyTsMs) {
+        def requestStart = Instant.ofEpochMilli(requestStartMs)
+        def replyTs = Instant.ofEpochMilli(replyTsMs)
+        def builder = new EventsBuilder.NativeCall(requestStart)
+        builder.withChain(Chain.ETHEREUM__MAINNET.id)
+        def request = BlockchainOuterClass.NativeCallRequest.newBuilder()
+                .setChain(Common.ChainRef.forNumber(Chain.ETHEREUM__MAINNET.id))
+                .addItems(BlockchainOuterClass.NativeCallItem.newBuilder()
+                        .setMethod("eth_blockNumber")
+                        .setId(1)
+                        .setPayload(com.google.protobuf.ByteString.EMPTY)
+                        .setNonce(0)
+                        .build())
+                .build()
+        builder.onRequest(request)
+        def callResult = new NativeCall.CallResult(1, 0L, "{}".bytes, null, null, [], null)
+        def event = builder.onReply(callResult, Events.Channel.JSONRPC, replyTs)
+        event.ts = replyTs
+        return event
     }
 }

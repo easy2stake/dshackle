@@ -46,6 +46,8 @@ Built-in access log (`accessLog` in YAML) writes JSON Lines per response. See `d
 | Valid list | Log only those chains |
 | Empty or only invalid ids | **No access logging**; service **still starts** (warn/error in app logs only) |
 
+**Fork addition on `custom`:** optional `accessLog.min-latency-ms` logs only slow `NativeCall` replies (`latency >=` threshold, inclusive). Omitted or `0` = no filter; negative = disabled with warn. Other event types (`Status`, streams, etc.) are not filtered. Composes with `chains`. Filter runs in `AccessLogWriter.shouldLog` — do not regress `latency` computation.
+
 **Per-call response time (`latency`, on `custom`):** each access-log line for `NativeCall` includes milliseconds from `request.start` to `ts`.
 
 | Field | Meaning |

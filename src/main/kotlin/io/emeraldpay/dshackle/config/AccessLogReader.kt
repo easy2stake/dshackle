@@ -20,7 +20,8 @@ class AccessLogReader : YamlConfigReader<AccessLogConfig>() {
             } else {
                 val includeMessages = getValueAsBool(node, "include-messages") ?: false
                 val chains = readChains(node)
-                val config = AccessLogConfig(true, includeMessages, chains)
+                val minLatencyMs = readMinLatencyMs(node)
+                val config = AccessLogConfig(true, includeMessages, chains, minLatencyMs)
                 getValueAsString(node, "filename")?.let {
                     config.filename = it
                 }
@@ -50,5 +51,14 @@ class AccessLogReader : YamlConfigReader<AccessLogConfig>() {
             )
         }
         return chains
+    }
+
+    private fun readMinLatencyMs(node: MappingNode): Long? {
+        val value = getValueAsLong(node, "min-latency-ms") ?: return null
+        if (value < 0) {
+            log.warn("accessLog.min-latency-ms must be non-negative; latency filter disabled")
+            return null
+        }
+        return value
     }
 }

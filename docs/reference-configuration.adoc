@@ -477,6 +477,15 @@ Note that for errors it provides only error message, not the error response itse
 When omitted, all chains are logged.
 When set, only valid listed chains are logged; an empty list or only invalid ids logs nothing (and logs an error at startup).
 
+| `min-latency-ms`
+| (not set)
+| Optional minimum response time in milliseconds for `NativeCall` lines only.
+When omitted or `0`, no latency filter is applied.
+When set to a positive value, only `NativeCall` events with `latency` greater than or equal to this threshold are logged (inclusive).
+Negative values disable the filter (with a warning at startup).
+Does not apply to other access-log event types.
+Composes with `chains`.
+
 |===
 
 [#tokens]

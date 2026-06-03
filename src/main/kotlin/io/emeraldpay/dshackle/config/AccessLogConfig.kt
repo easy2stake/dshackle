@@ -2,7 +2,7 @@ package io.emeraldpay.dshackle.config
 
 import io.emeraldpay.dshackle.Chain
 
-class AccessLogConfig(
+class AccessLogConfig @JvmOverloads constructor(
     val enabled: Boolean = false,
     val includeMessages: Boolean = false,
     /**
@@ -10,6 +10,11 @@ class AccessLogConfig(
      * Non-null — only listed chains are logged (`emptySet()` means log nothing).
      */
     val chains: Set<Chain>? = null,
+    /**
+     * `null` or `<= 0` — no latency filter.
+     * `> 0` — log `NativeCall` only when `latency >=` this value (ms); other event types unchanged.
+     */
+    val minLatencyMs: Long? = null,
 ) {
 
     var filename: String = "./access_log.jsonl"

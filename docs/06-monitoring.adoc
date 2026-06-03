@@ -19,11 +19,18 @@ accessLog:
   chains:
     - ethereum
     - bitcoin
+  min-latency-ms: 500
 ----
 
 When `chains` is set, only requests for those blockchains are written to the access log.
 Omit `chains` to log every chain.
 If `chains` is set but empty or contains only unknown ids, nothing is logged and startup reports an error (it does not fall back to logging all chains).
+
+Optional `min-latency-ms` logs only slow `NativeCall` replies: a line is written when `latency` is greater than or equal to the threshold (milliseconds).
+Omit it or set `0` to log every `NativeCall` (subject to `chains`).
+Negative values are ignored and disable the filter.
+Other access-log methods (for example gRPC `Status` or `SubscribeHead`) are not filtered by this option.
+For JSON-RPC batch calls, each sub-call is filtered on its own `latency`.
 
 `filename` is optional, and the default value is `access_log.jsonl` (i.e., in the current directory).
 

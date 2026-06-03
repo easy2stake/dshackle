@@ -74,6 +74,9 @@ class AccessLogWriter(
                 filter.joinToString { it.chainCode },
             )
         }
+        config.minLatencyMs?.takeIf { it > 0 }?.let { minMs ->
+            log.info("Access Log min latency: {} ms (NativeCall only)", minMs)
+        }
         scheduler.schedule(runner, START_SLEEP_MS, TimeUnit.MILLISECONDS)
 
         // propagate current config to the Event Builder, so it knows which details to include
@@ -103,11 +106,29 @@ class AccessLogWriter(
     }
 
     private fun shouldLog(event: Any): Boolean {
+        if (!passesChainFilter(event)) {
+            return false
+        }
+        return passesMinLatencyFilter(event)
+    }
+
+    private fun passesChainFilter(event: Any): Boolean {
         val filter = config.chains ?: return true
         if (filter.isEmpty()) {
             return false
         }
         return event is ChainBase && event.blockchain in filter
+    }
+
+    private fun passesMinLatencyFilter(event: Any): Boolean {
+        val minMs = config.minLatencyMs ?: return true
+        if (minMs <= 0) {
+            return true
+        }
+        if (event !is Events.NativeCall) {
+            return true
+        }
+        return event.latency >= minMs
     }
 
     fun logError(m: () -> Unit) {
